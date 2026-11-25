@@ -935,12 +935,19 @@ class Converter:
             # 7) reasoning message => extract thinking blocks if present
             elif reasoning_item := cls.maybe_reasoning_message(item):
                 clear_pending_reasoning_state()
-                # Reconstruct thinking blocks from content (text) and encrypted_content (signature)
-                content_items = reasoning_item.get("content", [])
+                # Reconstruct thinking blocks from content (text) and encrypted_content (signature).
+                # Provider data and content can be explicit None or another non-container type in
+                # persisted histories, so normalize them before iterating or reading keys.
+                raw_content_items = reasoning_item.get("content")
+                content_items = raw_content_items if isinstance(raw_content_items, list) else []
                 encrypted_content = reasoning_item.get("encrypted_content")
 
-                item_provider_data: dict[str, Any] = reasoning_item.get("provider_data", {})  # type: ignore[assignment]
-                item_model = item_provider_data.get("model", "")
+                raw_provider_data = reasoning_item.get("provider_data")
+                item_provider_data: dict[str, Any] = (
+                    raw_provider_data if isinstance(raw_provider_data, dict) else {}
+                )
+                raw_item_model = item_provider_data.get("model")
+                item_model = raw_item_model if isinstance(raw_item_model, str) else ""
                 reasoning_field = item_provider_data.get(_CHAT_COMPLETIONS_REASONING_FIELD_KEY)
                 origin_provider_data = {
                     key: value

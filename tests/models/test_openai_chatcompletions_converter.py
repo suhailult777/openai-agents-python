@@ -1056,3 +1056,73 @@ def test_assistant_messages_in_history():
     assert messages[1]["content"] == "Hello?"
     assert messages[2]["role"] == "user"
     assert messages[2]["content"] == "What was my Name?"
+
+
+@pytest.mark.parametrize(
+    "provider_data",
+    [None, [], "provider"],
+    ids=["none", "list", "string"],
+)
+def test_reasoning_item_with_invalid_provider_data_is_ignored(provider_data: Any):
+    """Nullable or non-dict provider_data must not crash reasoning conversion."""
+    item = cast(
+        TResponseInputItem,
+        {
+            "type": "reasoning",
+            "id": "rs_invalid_provider_data",
+            "summary": [],
+            "provider_data": provider_data,
+        },
+    )
+
+    assert Converter.items_to_messages([item], model="gpt-4o") == []
+
+
+def test_reasoning_item_with_none_content_and_reasoning_field_is_ignored():
+    """A reasoning item whose content is None must not be iterated."""
+    item = cast(
+        TResponseInputItem,
+        {
+            "type": "reasoning",
+            "id": "rs_none_content",
+            "summary": [],
+            "content": None,
+            "provider_data": {
+                "model": "test-model",
+                "_chat_completions_reasoning_field": "reasoning",
+            },
+        },
+    )
+
+    assert Converter.items_to_messages([item], model="test-model") == []
+
+
+def test_reasoning_item_with_none_provider_model_does_not_replay():
+    """A None provider model must not match a None caller model and replay text."""
+    item = cast(
+        TResponseInputItem,
+        {
+            "type": "reasoning",
+            "id": "rs_none_model",
+            "summary": [],
+            "content": [{"type": "reasoning_text", "text": "should not replay"}],
+            "provider_data": {
+                "model": None,
+                "_chat_completions_reasoning_field": "reasoning",
+            },
+        },
+    )
+
+    assistant = ResponseOutputMessage(
+        id="msg_1",
+        type="message",
+        role="assistant",
+        status="completed",
+        content=[ResponseOutputText(type="output_text", text="final", annotations=[])],
+    )
+    messages = Converter.items_to_messages(
+        [item, cast(TResponseInputItem, assistant.model_dump())],
+        model=None,
+    )
+
+    assert messages == [{"role": "assistant", "content": "final"}]
